@@ -274,8 +274,7 @@ if __name__ == '__main__':
             time_total = time.time() - time_old
             time_average = time_total /counter
             hz = 1 / time_average
-            if counter ==1:
-                break
+     
             print("Index: {}  Time taken: {} Average: {} hz: {}".format(counter, round(time_total,4), round(time_average,4), round(hz,2)), end='\r')
             counter += 1
             time.sleep(0.01)
