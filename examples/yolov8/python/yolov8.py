@@ -27,7 +27,7 @@ CLASSES = ("person", "bicycle", "car","motorbike ","aeroplane ","bus ","train","
            "bear","zebra ","giraffe","backpack","umbrella","handbag","tie","suitcase","frisbee","skis","snowboard","sports ball","kite",
            "baseball bat","baseball glove","skateboard","surfboard","tennis racket","bottle","wine glass","cup","fork","knife ",
            "spoon","bowl","banana","apple","sandwich","orange","broccoli","carrot","hot dog","pizza ","donut","cake","chair","sofa",
-           "pottedplant","bed","diningtable","toilet ","tvmonitor","laptop	","mouse	","remote ","keyboard ","cell phone","microwave ",
+           "pottedplant","bed","diningtable","toilet ","tvmonitor","laptop      ","mouse        ","remote ","keyboard ","cell phone","microwave ",
            "oven ","toaster","sink","refrigerator ","book","clock","vase","scissors ","teddy bear ","hair drier", "toothbrush ")
 
 coco_id_list = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 27, 28, 31, 32, 33, 34,
@@ -85,18 +85,22 @@ def nms_boxes(boxes, scores):
     keep = np.array(keep)
     return keep
 
+def softmax(x, axis=None):
+    x = x - x.max(axis=axis, keepdims=True)
+    y = np.exp(x)
+    return y / y.sum(axis=axis, keepdims=True)
+
 def dfl(position):
     # Distribution Focal Loss (DFL)
-    import torch
-    x = torch.tensor(position)
-    n,c,h,w = x.shape
+    
+    n,c,h,w = position.shape
     p_num = 4
     mc = c//p_num
-    y = x.reshape(n,p_num,mc,h,w)
-    y = y.softmax(2)
-    acc_metrix = torch.tensor(range(mc)).float().reshape(1,1,mc,1,1)
+    y = position.reshape(n,p_num,mc,h,w)
+    y = softmax(y, 2)
+    acc_metrix = np.array(range(mc), dtype=float).reshape(1,1,mc,1,1)
     y = (y*acc_metrix).sum(2)
-    return y.numpy()
+    return y
 
 
 def box_process(position):
@@ -252,14 +256,31 @@ if __name__ == '__main__':
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
         # preprocee if not rknn model
+        print("------platform: {}--------".format(platform))
         if platform in ['pytorch', 'onnx']:
             input_data = img.transpose((2,0,1))
             input_data = input_data.reshape(1,*input_data.shape).astype(np.float32)
             input_data = input_data/255.
         else:
-            input_data = img
-
-        outputs = model.run([input_data])
+            #input_data = img.transpose((2,0,1))
+            #input_data = input_data.reshape(1,*input_data.shape).astype(np.float32)
+            #input_data = input_data/255.
+            input_data = np.expand_dims(img, axis=0)
+        import time
+        counter = 1
+        time_old = time.time()
+        while True:
+            outputs = model.run([input_data])
+            time_total = time.time() - time_old
+            time_average = time_total /counter
+            hz = 1 / time_average
+            if counter ==1:
+                break
+            print("Index: {}  Time taken: {} Average: {} hz: {}".format(counter, round(time_total,4), round(time_average,4), round(hz,2)), end='\r')
+            counter += 1
+            time.sleep(0.01)
+            
+            
         boxes, classes, scores = post_process(outputs)
 
         if args.img_show or args.img_save:
@@ -298,5 +319,4 @@ if __name__ == '__main__':
 
         from py_utils.coco_utils import coco_eval_with_json
         coco_eval_with_json(args.anno_json, pred_json)
-
 
